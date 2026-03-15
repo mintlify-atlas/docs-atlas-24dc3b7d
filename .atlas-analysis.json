@@ -1,0 +1,48 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Python Port Scanner",
+  "projectDescription": "A lightweight, multithreaded Python CLI tool that scans a target host for open TCP ports with configurable rate limiting and results export to JSON, CSV, or plain text.",
+  "theme": "aspen",
+  "primaryColor": "#2563EB",
+  "lightColor": "#DBEAFE",
+  "darkColor": "#1E3A5F",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Usage",
+            "pages": ["usage/basic-scanning", "usage/advanced-options", "usage/output-formats"]
+          },
+          {
+            "group": "Reference",
+            "pages": ["reference/cli-commands", "reference/rate-limiting", "reference/troubleshooting"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multithreaded TCP port scanning for fast results",
+    "Configurable port range (start and end port)",
+    "Rate limiting to avoid overwhelming target hosts",
+    "Service name resolution for common ports",
+    "Export results to JSON, CSV, or plain text",
+    "Auto-generated timestamped output filenames",
+    "No external dependencies — standard library only",
+    "Cross-platform: Windows, Linux, macOS"
+  ],
+  "publicApiSurface": [
+    "target (positional argument) — target IP address or hostname",
+    "-s / --start-port — start port (default: 1)",
+    "-e / --end-port — end port (default: 1024)",
+    "-t / --threads — max concurrent threads (default: 100)",
+    "-r / --rate-limit — max port probes per second (default: 10)",
+    "-o / --output — output filename (.json, .txt, or .csv)"
+  ]
+}
