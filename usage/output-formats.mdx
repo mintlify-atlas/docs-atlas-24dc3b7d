@@ -1,0 +1,190 @@
+---
+title: Output formats
+description: Save scan results to JSON, TXT, or CSV. Learn how each format is structured and how to choose the right one for your workflow.
+---
+
+The scanner always saves results to a file when a scan completes. You control the format through the filename extension you pass to `-o`.
+
+## Default output
+
+If you do not specify `-o`, the scanner automatically generates a JSON filename using the current timestamp:
+
+```text
+scan_results_2026-03-15_10-30-00.json
+```
+
+The pattern is `scan_results_YYYY-MM-DD_HH-MM-SS.json`. The file is written to the current working directory.
+
+## Specifying an output file
+
+Use the `-o` flag to set the output filename and format:
+
+```bash
+python Port_scanner.py 192.168.1.1 -o results.json
+python Port_scanner.py 192.168.1.1 -o results.txt
+python Port_scanner.py 192.168.1.1 -o results.csv
+```
+
+The scanner detects the format from the file extension.
+
+<Note>
+If you omit the extension entirely (e.g., `-o myresults`), the scanner appends `.json` and prints a notice:
+
+```text
+No extension provided — defaulting to .json
+Results saved to myresults.json
+```
+</Note>
+
+<Warning>
+If you provide an unrecognized extension (e.g., `-o results.xml`), the scanner also falls back to JSON and appends `.json` to your filename without warning.
+</Warning>
+
+## Format details
+
+<Tabs>
+  <Tab title="JSON">
+    ### Structure
+
+    ```json scan_results_2026-03-15_10-30-00.json
+    {
+        "target": "192.168.1.1",
+        "scan_results": [
+            {"port": 22, "status": "open"},
+            {"port": 25, "status": "closed"},
+            {"port": 80, "status": "open"},
+            {"port": 110, "status": "filtered"},
+            {"port": 443, "status": "open"}
+        ]
+    }
+    ```
+
+    The top-level object contains:
+    - `target` — the hostname or IP address that was scanned
+    - `scan_results` — an array of objects, one per port, sorted by port number
+
+    Each result object has two fields: `port` (integer) and `status` (string).
+
+    <Tip>
+    JSON is the best format if you plan to process results programmatically or feed them into another tool.
+    </Tip>
+  </Tab>
+
+  <Tab title="TXT">
+    ### Structure
+
+    ```text results.txt
+    PORT SCAN RESULTS
+    =================
+    Target : 192.168.1.1
+    Date   : 2026-03-15_10-30-00
+    =================
+
+    Port 22     | ssh                  | open
+    Port 25     | smtp                 | closed
+    Port 80     | http                 | open
+    Port 110    | pop3                 | filtered
+    Port 443    | https                | open
+    Port 8080   | Service name NOT FOUND | closed
+    ```
+
+    The file starts with a fixed-width header showing the target and scan date, followed by one line per port. Each data line uses the column layout:
+
+    ```text
+    Port {port:<6} | {service:<20} | {status}
+    ```
+
+    Port numbers are left-padded to 6 characters; service names are left-padded to 20 characters.
+
+    <Tip>
+    TXT format is ideal for sharing in tickets, emails, or any context where the reader will view the file directly.
+    </Tip>
+  </Tab>
+
+  <Tab title="CSV">
+    ### Structure
+
+    ```text results.csv
+    target,port,service,status
+    192.168.1.1,22,ssh,open
+    192.168.1.1,25,smtp,closed
+    192.168.1.1,80,http,open
+    192.168.1.1,110,pop3,filtered
+    192.168.1.1,443,https,open
+    192.168.1.1,8080,Service name NOT FOUND,closed
+    ```
+
+    The header row is always `target,port,service,status`. Each subsequent row represents one scanned port.
+
+    <Tip>
+    CSV is the best choice when you want to import results into a spreadsheet or database.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Extension detection logic
+
+The `save_results` function inspects the extension of the filename you provide:
+
+```python Port_scanner.py
+def save_results(target_host, results, filename):
+    _, ext = os.path.splitext(filename)
+    ext = ext.lower()
+    if ext == ".json" or ext == "":
+        if ext == "":
+            filename = filename + ".json"
+            print("No extension provided — defaulting to .json")
+        save_json(target_host, results, filename)
+    elif ext == ".txt":
+        save_txt(target_host, results, filename)
+    elif ext == ".csv":
+        save_csv(target_host, results, filename)
+    else:
+        print(f"Unknown extension '{ext}' — defaulting to .json")
+        filename = filename + ".json"
+        save_json(target_host, results, filename)
+```
+
+<AccordionGroup>
+  <Accordion title="No extension provided">
+    `.json` is appended to the filename and a notice is printed to the terminal.
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -o myresults
+    # Writes: myresults.json
+    # Prints: No extension provided — defaulting to .json
+    ```
+  </Accordion>
+
+  <Accordion title="Unknown extension">
+    `.json` is appended to the filename. No user-visible notice is printed beyond the final save confirmation.
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -o myresults.xml
+    # Writes: myresults.xml.json
+    ```
+  </Accordion>
+
+  <Accordion title="Explicit .json extension">
+    Saved directly with the filename as given.
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -o myresults.json
+    # Writes: myresults.json
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Format comparison
+
+<Columns cols={3}>
+  <Card title="JSON" icon="braces">
+    Best for programmatic processing, scripting, or piping into other tools.
+  </Card>
+  <Card title="TXT" icon="file-text">
+    Best for human-readable reports, sharing in plaintext channels.
+  </Card>
+  <Card title="CSV" icon="table">
+    Best for spreadsheet import, database ingestion, or filtering by column.
+  </Card>
+</Columns>

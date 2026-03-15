@@ -1,0 +1,174 @@
+---
+title: Advanced options
+description: Control port ranges, thread counts, and rate limiting to tune scan speed and resource usage for your environment.
+---
+
+The scanner exposes several flags that let you tailor its behavior for different network conditions and performance requirements.
+
+## Full flag reference
+
+| Flag | Long form | Default | Description |
+|------|-----------|---------|-------------|
+| `-s` | `--start-port` | `1` | First port in the scan range |
+| `-e` | `--end-port` | `1024` | Last port in the scan range |
+| `-t` | `--threads` | `100` | Maximum concurrent threads |
+| `-r` | `--rate-limit` | `10` | Maximum port probes per second |
+| `-o` | `--output` | auto | Output filename (see [Output formats](/usage/output-formats)) |
+
+## Custom port ranges
+
+Use `-s` and `-e` to restrict the scan to a specific range:
+
+<CodeGroup>
+
+```bash Web ports only
+python Port_scanner.py 192.168.1.1 -s 80 -e 443
+```
+
+```bash High ports
+python Port_scanner.py 192.168.1.1 -s 8000 -e 9000
+```
+
+```bash Single port
+python Port_scanner.py 192.168.1.1 -s 22 -e 22
+```
+
+</CodeGroup>
+
+<Note>
+Both `-s` and `-e` are inclusive. A scan from `-s 80 -e 80` probes exactly one port.
+</Note>
+
+## Thread count
+
+The `-t` flag sets the maximum number of ports that can be scanned concurrently:
+
+```bash
+python Port_scanner.py 192.168.1.1 -t 50
+```
+
+### How the semaphore works
+
+The scanner uses a `threading.Semaphore` to cap concurrent threads. Each worker thread acquires the semaphore before connecting and releases it when done:
+
+```python Port_scanner.py
+semaphore = threading.Semaphore(thread_limit)
+
+def limited_scan(port, target_host, semaphore, rate_limiter):
+    rate_limiter.wait()
+    with semaphore:
+        port_scan(target_host, port)
+```
+
+All port threads are created and started upfront. The semaphore ensures that at most `thread_limit` of them are executing `port_scan` at any moment; the rest block on `semaphore.acquire()` until a slot opens.
+
+<AccordionGroup>
+  <Accordion title="More threads (higher -t)">
+    - Faster scan completion
+    - Higher memory and CPU usage
+    - More simultaneous connections to the target host
+    - May trigger IDS/IPS rules or rate limiting on the remote side
+  </Accordion>
+  <Accordion title="Fewer threads (lower -t)">
+    - Slower scan, but lower resource footprint
+    - Reduced risk of connection limits or detection
+    - Appropriate for scanning sensitive or production systems
+  </Accordion>
+</AccordionGroup>
+
+## Rate limiting
+
+The `-r` flag sets how many port probes are permitted per second across all threads:
+
+```bash
+python Port_scanner.py 192.168.1.1 -r 5
+```
+
+### How the RateLimiter works
+
+The `RateLimiter` class uses a sliding window of timestamps stored in a `collections.deque`:
+
+```python Port_scanner.py
+class RateLimiter:
+    def __init__(self, max_per_second):
+        self.max_per_second = max_per_second
+        self.lock = threading.Lock()
+        self.timestamps = collections.deque()
+
+    def wait(self):
+        with self.lock:
+            now = time.time()
+            self.timestamps.append(now)
+            if len(self.timestamps) >= self.max_per_second:
+                oldest = self.timestamps.popleft()
+                wait_time = 1.0 - (now - oldest)
+                if wait_time > 0:
+                    time.sleep(wait_time)
+```
+
+Each time a thread calls `wait()`:
+
+1. The current timestamp is recorded.
+2. If the deque has reached `max_per_second` entries, the oldest timestamp is removed.
+3. If less than 1 second has elapsed since that oldest probe, the thread sleeps for the remaining time.
+
+This ensures the throughput never exceeds `max_per_second` probes per second, regardless of how many threads are running.
+
+<Warning>
+The rate limiter uses a shared lock, so only one thread can enter `wait()` at a time. Under very high thread counts, threads may queue up waiting to acquire this lock, adding latency beyond the intended rate limit delay.
+</Warning>
+
+## Per-probe delay
+
+In addition to the rate limiter, each thread sleeps for **50 milliseconds** after completing a probe:
+
+```python Port_scanner.py
+def port_scan(target_host, port):
+    # ... probe logic ...
+    time.sleep(0.05)
+```
+
+This sleep happens after the socket is closed and the result is recorded. It adds a small per-thread cooldown that softens burst patterns even when the rate limiter would otherwise permit back-to-back probes.
+
+## Combining flags
+
+<Tabs>
+  <Tab title="Fast local scan">
+    Scan a local network host with maximum concurrency and no rate restriction:
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -s 1 -e 65535 -t 500 -r 1000
+    ```
+
+    Use only on hosts you own and control. High thread counts on production systems can cause service disruption.
+  </Tab>
+  <Tab title="Careful remote scan">
+    Scan a remote host slowly to avoid triggering firewalls or alerts:
+
+    ```bash
+    python Port_scanner.py example.com -s 1 -e 1024 -t 10 -r 3
+    ```
+
+    Lower rate and thread limits reduce the scan's network footprint.
+  </Tab>
+  <Tab title="Targeted service check">
+    Check only common web and database ports:
+
+    ```bash
+    python Port_scanner.py 10.0.0.5 -s 3000 -e 5432 -t 50 -r 20 -o results.csv
+    ```
+
+    Combined with a CSV output for easy filtering.
+  </Tab>
+</Tabs>
+
+## Trade-offs summary
+
+<Columns cols={2}>
+  <Card title="Speed vs. safety" icon="bolt">
+    Higher `-t` and `-r` values finish scans faster but put more load on both the scanner host and the target. Start conservative and increase gradually.
+  </Card>
+  <Card title="Rate limit vs. thread count" icon="sliders">
+    These two controls are independent. You can have 100 threads but a rate limit of 5/s — the extra threads will mostly be waiting. Match them to avoid wasted overhead.
+  </Card>
+</Columns>

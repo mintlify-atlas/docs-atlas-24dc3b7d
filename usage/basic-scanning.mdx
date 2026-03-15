@@ -1,0 +1,118 @@
+---
+title: Basic scanning
+description: Learn how to scan a host using the default settings, and understand what the output tells you about each port.
+---
+
+The port scanner requires only a single argument — a target host — and will scan ports 1 through 1024 by default.
+
+## Running your first scan
+
+Pass an IP address or hostname directly to the script:
+
+<CodeGroup>
+
+```bash IP address
+python Port_scanner.py 192.168.1.1
+```
+
+```bash Hostname
+python Port_scanner.py example.com
+```
+
+</CodeGroup>
+
+<Note>
+The scanner resolves hostnames using the system's DNS configuration. If the hostname cannot be resolved, the scan will fail immediately.
+</Note>
+
+## Default behavior
+
+When no additional flags are provided, the scanner uses these defaults:
+
+<Columns cols={2}>
+  <Card title="Port range" icon="hash">
+    Scans ports **1 through 1024** — the well-known ports range.
+  </Card>
+  <Card title="Concurrency" icon="layers">
+    Up to **100 threads** running simultaneously.
+  </Card>
+  <Card title="Rate limit" icon="gauge">
+    No more than **10 probes per second** to avoid overwhelming the target.
+  </Card>
+  <Card title="Output file" icon="file">
+    Results are saved to a **JSON file** with an auto-generated timestamp name.
+  </Card>
+</Columns>
+
+## Understanding the terminal output
+
+As each port is probed, the scanner prints one line per port in real time:
+
+```text terminal output
+Port 22   → ssh is open
+Port 25   → smtp is closed
+Port 80   → http is open
+Port 110  → pop3 is filtered (timeout)
+Port 143  → imap is closed
+Port 443  → https is open
+Port 8080 → Service name NOT FOUND is closed
+```
+
+Each line follows the format:
+
+```text
+Port {number} → {service name} is {status}
+```
+
+Service names are resolved using the system's service database (`socket.getservbyport`). If no known service maps to that port number, the scanner displays `Service name NOT FOUND`.
+
+## Port statuses
+
+<AccordionGroup>
+  <Accordion title="open" icon="circle-check" defaultOpen={true}>
+    The target accepted a TCP connection on this port. A service is actively listening and responding.
+
+    Technically, `connect()` returned successfully — the three-way TCP handshake completed.
+  </Accordion>
+
+  <Accordion title="closed" icon="circle-x">
+    The target responded with a TCP RST (connection refused). The port is reachable but no service is listening on it.
+
+    This is a `ConnectionRefusedError` from Python's socket library.
+  </Accordion>
+
+  <Accordion title="filtered (timeout)" icon="clock">
+    No response was received within the timeout window. This usually means a firewall is silently dropping packets to that port, or the host is unreachable.
+
+    The scanner waits **3 seconds** before marking a port as filtered.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+A "filtered" result does not necessarily mean no service exists on that port. Firewalls often block probes selectively. Do not draw conclusions about service availability from filtered ports alone.
+</Warning>
+
+## Socket timeout
+
+Each connection attempt has a hard timeout of **3 seconds**:
+
+```python Port_scanner.py
+sock.settimeout(3)
+```
+
+If the remote host does not respond within 3 seconds, the connection is aborted and the port is marked as `filtered`. For slow networks or distant hosts, this may produce false positives — consider reducing the port range or adjusting expectations accordingly.
+
+## Scan completion
+
+Once all ports have been probed, the scanner prints a completion message and saves the results:
+
+```text
+Port Scanning is Complete.
+Results saved to scan_results_2026-03-15_10-30-00.json
+```
+
+Results are sorted by port number before being written to the output file.
+
+<Tip>
+To control the output location or format, use the `-o` flag. See [Output formats](/usage/output-formats) for details.
+</Tip>

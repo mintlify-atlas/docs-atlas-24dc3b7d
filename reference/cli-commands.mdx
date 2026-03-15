@@ -1,0 +1,102 @@
+---
+title: "CLI commands"
+description: "Complete reference for all command-line arguments accepted by Port_scanner.py."
+---
+
+## Usage
+
+```bash
+python Port_scanner.py <target> [options]
+```
+
+`target` is required. All other arguments are optional and have defaults.
+
+## Arguments
+
+### Positional
+
+<ParamField path="target" type="string" required>
+  The IP address or hostname to scan. Accepts both IPv4 addresses (e.g.
+  `192.168.1.1`) and resolvable hostnames (e.g. `example.com`).
+</ParamField>
+
+### Optional
+
+<ParamField query="-s / --start-port" type="integer" default="1">
+  The first port number in the scan range. Must be between 1 and 65535.
+</ParamField>
+
+<ParamField query="-e / --end-port" type="integer" default="1024">
+  The last port number in the scan range (inclusive). Must be between 1 and
+  65535 and greater than or equal to `--start-port`.
+</ParamField>
+
+<ParamField query="-t / --threads" type="integer" default="100">
+  Maximum number of TCP connections that may be open simultaneously. Higher
+  values increase scan speed but also increase resource and network load. The
+  scanner creates one thread per port, and this semaphore limits how many
+  threads are active at once.
+</ParamField>
+
+<ParamField query="-r / --rate-limit" type="integer" default="10">
+  Maximum number of port probes dispatched per second. Uses a sliding-window
+  algorithm to smooth bursts. Lower values reduce the load placed on the
+  target. See [Rate limiting](/reference/rate-limiting) for a full explanation.
+</ParamField>
+
+<ParamField query="-o / --output" type="string" default="scan_results_<timestamp>.json">
+  Output filename for scan results. The file extension determines the format:
+
+  - `.json` — structured JSON (default when no extension or unknown extension is given)
+  - `.txt` — human-readable plain text table
+  - `.csv` — comma-separated values, one row per port
+
+  When this argument is omitted, a JSON file named
+  `scan_results_YYYY-MM-DD_HH-MM-SS.json` is written to the current directory.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Scan default ports (1–1024)
+python Port_scanner.py 192.168.1.1
+```
+
+```bash Scan a hostname, save as CSV
+python Port_scanner.py example.com -o results.csv
+```
+
+```bash Scan a narrow port range
+python Port_scanner.py 10.0.0.5 -s 80 -e 443
+```
+
+```bash High-speed scan with more threads and higher rate limit
+python Port_scanner.py 192.168.1.1 -s 1 -e 9999 -t 200 -r 100
+```
+
+```bash Slow stealth scan with low rate limit
+python Port_scanner.py 203.0.113.10 -r 2 -t 5 -o stealth_scan.txt
+```
+
+```bash Full port range scan saved to JSON
+python Port_scanner.py 192.168.1.1 -s 1 -e 65535 -o full_scan.json
+```
+
+</CodeGroup>
+
+## Port status values
+
+Each scanned port is reported with one of these status values:
+
+| Status | Meaning |
+|---|---|
+| `open` | TCP connection was accepted by the target |
+| `closed` | Target actively refused the connection (`ConnectionRefusedError`) |
+| `filtered` | No response within the 3-second timeout — often indicates a firewall |
+| `error: <msg>` | An unexpected socket error occurred |
+
+<Note>
+  The scanner uses a fixed 3-second TCP connect timeout per port. This value
+  is hardcoded in `port_scan()` and cannot be changed from the CLI.
+</Note>

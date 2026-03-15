@@ -1,0 +1,180 @@
+---
+title: "Troubleshooting"
+description: "Solutions for common problems encountered when running the Python Port Scanner."
+---
+
+<Note>
+  Python **3.8 or later** is required. Run `python --version` (or `python3
+  --version`) to confirm before troubleshooting other issues.
+</Note>
+
+<AccordionGroup>
+  <Accordion title="Scan takes too long">
+    A slow scan is usually caused by one of three things:
+
+    - **Wide port range** — the default range is 1–1024 (1024 ports). Scanning
+      1–65535 at the default rate of 10 probes/second takes over an hour.
+    - **Low rate limit or thread count** — the defaults (`-r 10 -t 100`) are
+      conservative.
+    - **Many filtered ports** — each filtered port waits the full 3-second TCP
+      timeout before the thread finishes.
+
+    **Solutions:**
+
+    Narrow the port range to what you actually need:
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -s 1 -e 1024
+    ```
+
+    Increase threads and rate limit for faster scans on trusted networks:
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -t 200 -r 100
+    ```
+
+    <Tip>
+      If most ports are filtered, the bottleneck is the 3-second timeout
+      multiplied by the number of ports. Reducing the port range has a bigger
+      impact than increasing thread count in this case.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Too many filtered ports">
+    A `filtered` result means the TCP connection attempt received no response
+    within 3 seconds. This is expected behaviour when:
+
+    - The target has a firewall that silently drops connection attempts
+    - A network device between you and the target is blocking the traffic
+    - You are scanning ports the target host is not listening on but a
+      stateful firewall intercepts
+
+    This is not an error in the scanner. Filtered ports are a normal and
+    informative result — they indicate a firewall is present.
+
+    If you expected more open ports, verify:
+
+    - You have network-level access to the target (e.g. on the same VPN or LAN)
+    - The target is online and reachable (`ping <target>`)
+    - You are scanning the correct IP address or hostname
+  </Accordion>
+
+  <Accordion title="Permission denied or OS error">
+    The scanner uses standard TCP connect sockets (`SOCK_STREAM`), not raw
+    sockets. **Root or administrator privileges are not required** to run it.
+
+    If you see a `PermissionError` or `OSError`, the likely causes are:
+
+    - **Writing the output file** — the current working directory may not be
+      writable. Change to a directory where you have write access, or specify a
+      full path with `-o`:
+
+      ```bash
+      python Port_scanner.py 192.168.1.1 -o /tmp/results.json
+      ```
+
+    - **System socket limits** — if `-t` is very high, you may exhaust the
+      OS's open file descriptor limit. Reduce `--threads`:
+
+      ```bash
+      python Port_scanner.py 192.168.1.1 -t 50
+      ```
+  </Accordion>
+
+  <Accordion title="Hostname could not be resolved">
+    ```
+    socket.gaierror: [Errno -2] Name or service not known
+    ```
+
+    This error means Python could not resolve the hostname to an IP address.
+
+    Check the following:
+
+    - The hostname is spelled correctly
+    - Your machine has working DNS (try `nslookup <hostname>` or `ping <hostname>`)
+    - If scanning on a private network, the hostname may not be in your DNS
+      server — use the IP address directly instead
+    - A VPN or proxy may be intercepting DNS queries
+  </Accordion>
+
+  <Accordion title="All ports show as filtered">
+    When every single port in the range returns `filtered`, the most common
+    causes are:
+
+    - **Firewall blocking all outbound traffic** on your local machine — check
+      your host firewall settings
+    - **VPN routing issues** — the VPN may be routing traffic to the wrong
+      network or blocking outbound TCP
+    - **Wrong target IP or hostname** — double-check the address; you may be
+      scanning a host that is offline or does not exist
+    - **Corporate network restrictions** — some networks block outbound port
+      scanning at the perimeter
+
+    As a quick test, try scanning a well-known public host on a port you know
+    is open:
+
+    ```bash
+    python Port_scanner.py example.com -s 80 -e 80
+    ```
+
+    If port 80 on `example.com` is also reported as filtered, the issue is on
+    your side of the network.
+  </Accordion>
+
+  <Accordion title="Output file not created">
+    The scanner writes the output file in the **current working directory**
+    unless you provide an absolute path with `-o`.
+
+    Check that:
+
+    - You have write permission in the current directory
+    - There is enough disk space available
+    - The path provided with `-o` (if any) points to a directory that exists
+
+    To write to a specific location:
+
+    ```bash
+    python Port_scanner.py 192.168.1.1 -o /home/user/scans/results.json
+    ```
+
+    If no `-o` flag is given and you do not see the auto-generated file, look
+    for `scan_results_*.json` in the directory from which you ran the command.
+  </Accordion>
+
+  <Accordion title='Service name shows "Service name NOT FOUND"'>
+    The scanner resolves port numbers to service names using
+    `socket.getservbyport()`, which looks up the system's service database
+    (typically `/etc/services` on Linux/macOS or the equivalent on Windows).
+
+    `Service name NOT FOUND` is printed when the port number is not in that
+    database. This is **normal** for:
+
+    - Non-standard or application-specific ports (e.g. 8080, 3000, 27017)
+    - Ports used by custom or proprietary software
+
+    The scan result is still valid — the port status (`open`, `closed`,
+    `filtered`) is unaffected by whether the service name is known.
+  </Accordion>
+
+  <Accordion title="Python version error">
+    The scanner requires **Python 3.8 or later**. Running it with an older
+    version may produce a `SyntaxError` or unexpected behaviour.
+
+    Check your version:
+
+    ```bash
+    python --version
+    ```
+
+    If the output shows Python 2.x or a version below 3.8, install a current
+    Python release from [python.org](https://www.python.org/downloads/) or use
+    your system package manager.
+
+    On systems where both Python 2 and Python 3 are installed, you may need to
+    invoke the scanner explicitly with `python3`:
+
+    ```bash
+    python3 Port_scanner.py 192.168.1.1
+    ```
+  </Accordion>
+</AccordionGroup>

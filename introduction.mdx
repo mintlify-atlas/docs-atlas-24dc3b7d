@@ -1,0 +1,71 @@
+---
+title: "Introduction"
+description: "A lightweight, multithreaded Python CLI tool that scans a target host for open TCP ports."
+---
+
+# Python Port Scanner
+
+A fast and lightweight **port scanner written in Python** that scans a target host for open TCP ports. Designed for learning network security, socket programming, and multithreading — with no external dependencies required.
+
+<Warning>
+  This tool is intended **for educational and authorized security testing only**. Never scan systems without explicit permission from the owner.
+</Warning>
+
+## Overview
+
+The Python Port Scanner connects to each port in the specified range using TCP sockets, reports whether each port is open, closed, or filtered, and optionally saves results to a file. It uses Python's built-in `threading` module for parallel scanning and `argparse` for a clean command-line interface.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Clone, install, and run your first scan in under two minutes
+  </Card>
+  <Card title="Basic scanning" icon="radar" href="/usage/basic-scanning">
+    Learn the fundamentals of scanning a host
+  </Card>
+  <Card title="Advanced options" icon="sliders" href="/usage/advanced-options">
+    Configure threads, rate limits, and more
+  </Card>
+  <Card title="Output formats" icon="file-export" href="/usage/output-formats">
+    Save results as JSON, CSV, or plain text
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Multithreaded scanning" icon="bolt">
+    Probes multiple ports simultaneously using Python threads for significantly faster scans
+  </Card>
+  <Card title="Rate limiting" icon="gauge">
+    Controls how many probes are sent per second to avoid overwhelming the target host
+  </Card>
+  <Card title="Service name resolution" icon="tag">
+    Automatically maps port numbers to well-known service names using the system's service database
+  </Card>
+  <Card title="Multiple export formats" icon="floppy-disk">
+    Save scan results as JSON, CSV, or plain text with auto-generated timestamped filenames
+  </Card>
+  <Card title="No external dependencies" icon="check">
+    Uses only Python's standard library — no pip installs required
+  </Card>
+  <Card title="Cross-platform" icon="globe">
+    Runs on Windows, Linux, and macOS with Python 3.8 or later
+  </Card>
+</CardGroup>
+
+## How it works
+
+The scanner resolves the target hostname to an IP address, then spawns one thread per port in the configured range. Each thread:
+
+1. Enforces the rate limit by waiting if too many probes have been sent recently
+2. Acquires a semaphore slot to cap the maximum number of simultaneous connections
+3. Attempts a TCP connection with a 3-second timeout
+4. Reports the port as **open**, **closed**, or **filtered** based on the result
+5. Writes the result to a shared list (protected by a lock)
+
+After all threads complete, results are sorted by port number and written to the output file.
+
+## Requirements
+
+- Python **3.8** or later
+- No external packages — uses only the Python standard library (`socket`, `threading`, `argparse`, `json`, `csv`, `os`, `collections`, `datetime`)
